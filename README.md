@@ -2,7 +2,7 @@
 
 ## Collaborators: 
 
-Alice Abramowicz, Kirien Whan, Irene Garcia Marti & Isabel Monteiro.
+Alice Abramowicz, Isabel Monteiro, Kirien Whan, Irene Garcia Marti & Sanne Willems.
 
 ## Project description:
 

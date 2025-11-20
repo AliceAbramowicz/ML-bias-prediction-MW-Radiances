@@ -42,7 +42,7 @@ Alternatively, you can skip the data engineering section and directly use the da
 For this project, we need to create a training and a testing dataset. 
 To ensure generalizability, we use a different geographical domain for training (i.e. the DINI domain) and for testing (i.e. the Dutch domain).
 
-![Training set based on the DINI domain (in purple) and testing set based on the dutch domain (in orange)](/Users/aliceabramowicz/Downloads/DINI_Dutch_Domains.png)
+<img width="549" height="547" alt="DINI_Dutch_Domains" src="https://github.com/user-attachments/assets/d01d25ef-ef4f-4ed6-9d1a-9e47ae7e137d" />
 
 In this project, we have one config file for the training dataset (config/dini.yaml) and one config file for the testing set (config/dutch.yaml).
 To create the datasets, adjust these configuration files to your liking.
@@ -121,7 +121,16 @@ Once you have run this pipeline for both your training and testing sets, you can
 
 ## ML models fitting: results
 
-After performing a hyperparameter search for the Random Forest, Adaptive Boosting and Neural Network, we obtain the following results for our models.
+After performing a hyperparameter search for the Random Forest (RF), Adaptive Boosting (AB) and Neural Network (NN), we obtain the following results for our models.
+
+RF (mse: 0.0199, r2: 0.8524):
+<img width="600" height="600" alt="RF_ytest_VS_ypred_colored_pred" src="https://github.com/user-attachments/assets/ea76f2c9-c9bb-4c90-bada-2ecbe3054f56" />
+
+AB (mse: 0.0253, r2: 0.8123):
+<img width="600" height="600" alt="AB_ytest_VS_ypred_colored_preds" src="https://github.com/user-attachments/assets/7cec7926-fcc4-4dae-8d94-3861ed90c03b" />
+
+NN (mse: 0.0269, r2 0.8006):
+<img width="600" height="600" alt="NN_ytest_VS_ypred_colored_pred_exp" src="https://github.com/user-attachments/assets/b8e4dd3e-61ea-49d0-81e5-db8318640376" />
 
 
 

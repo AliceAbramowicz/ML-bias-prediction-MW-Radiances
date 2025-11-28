@@ -131,7 +131,7 @@ From `big_df_stats_2021.csv`, `big_df_stats_2023.csv`:
 - Take care of categorical and numerical variables;
 - Design new features;
 - Scale variables;
-- Create the finale X_train, y_train, X_test, y_test (as well as their scaled counterparts).
+- Create the final X_train, y_train, X_test, y_test (as well as their scaled counterparts).
 
 ## ML models fitting: results
 
@@ -147,15 +147,22 @@ After performing a hyperparameter search for the Random Forest (RF), Adaptive Bo
 
 **NN (mse: 0.0269, r<sup>2</sup>: 0.8006):**
 
-<img width="600" height="600" alt="NN_ytest_VS_ypred_colored_pred_exp" src="https://github.com/user-attachments/assets/b8e4dd3e-61ea-49d0-81e5-db8318640376" />
+<img width="600" height="600" alt="NN_ytest_VS_ypred_colored_pred_exp" src="https://github.com/user-attachments/assets/b6aaf4f8-bd6d-471e-916c-59d7eeaaebdc" />
 
-## Implementing ML bias correction in an NWP experiment (offline seeting)
+## Implementing ML bias correction in an NWP experiment (offline setting)
 
-Once the ML inference was performed, feed back your new ML bias coefficient predictions to the `VARBC.cycles` of your experiment with the script `update_VarBC.py`. 
+Once the ML inference is performed, feed your new ML bias coefficient predictions back to the `VARBC.cycles` of your experiment with the script `update_VarBC.py`. You can now arrange the scripts of your NWP to read these ML-based VarBC.cycle files during the analysis. In H-A (cycles 43-46-49), you can do so with the script `Fetch_assim_data`.
 
-You can now arrange the scripts of your NWP to read these ML-based VarBC.cycle files during the analysis. In H-A (cycles 43/46/49), you can do so with the script `Fetch_assim_data`.
+The workflow of the hybrid DA system implementing the ML bias correction is illustrated in the context of H-A in the followinf Figure:
 
-Make sure that VarBC does not activate to update your ML bias predictions. This can be done by imposing a very high stiffness parameter $M^j$ in the adaptivity matrix $B_\Beta$ in the variational cost fuction. In H-A (cycles 43/46/49), you can do so in your NWP experiment namelist `harmonie_namelists.pm` by setting NBG very high for the sensors of interest:
+<img width="2322" height="1411" alt="VarBC_ML_workflow" src="https://github.com/user-attachments/assets/21f578ec-a0e9-4840-b665-9421e916f30e" />
+
+Make sure that VarBC does not activate to update your ML bias predictions. This can be done by imposing a very high stiffness parameter $M^j$ in the adaptivity matrix $B_\beta$ in the variational cost fuction: 
+
+<img width="1409" height="89" alt="Variational_J_bias" src="https://github.com/user-attachments/assets/d52ac78a-5600-41f9-a6ae-f1534e7dec14" />
+
+
+In H-A (cycles 43-46-49), you can do so in your NWP experiment namelist `harmonie_namelists.pm` by setting NBG very high for the sensors of interest:
 ```
 varbc=(
  NAMVARBC=>{

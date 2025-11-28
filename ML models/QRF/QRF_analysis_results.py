@@ -5,12 +5,10 @@ import pickle
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from matplotlib.patches import Patch
 
-df_train = pd.read_csv("/perm/nld3863/create_dataset_all/big_df_stats_2023.csv")
-df_test = pd.read_csv("/perm/nld3863/create_dataset_all/big_df_stats_2021.csv")
-X_train = pd.read_csv("/perm/nld3863/create_dataset_all/X_train_stats.csv")
-X_test = pd.read_csv("/perm/nld3863/create_dataset_all/X_test_stats.csv")
-y_train = df_train["param"]
-y_test = df_test["param"]
+X_train = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/X_train_stats.csv")
+X_test = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/X_test_stats.csv")
+y_train = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/y_train_stats.csv")
+y_test = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/y_test_stats.csv")
 
 pickle_file = "QRF_results.pkl"
 with open(pickle_file, 'rb') as f:

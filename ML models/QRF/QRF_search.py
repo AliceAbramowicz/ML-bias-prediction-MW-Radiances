@@ -9,10 +9,10 @@ import random
 import properscoring as ps
 import numpy as np
 
-X_train = pd.read_csv("/perm/nld3863/create_dataset_all/X_train_stats.csv")
-X_test = pd.read_csv("/perm/nld3863/create_dataset_all/X_test_stats.csv")
-y_train = pd.read_csv("/perm/nld3863/create_dataset_all/y_train_stats.csv")
-y_test = pd.read_csv("/perm/nld3863/create_dataset_all/y_test_stats.csv")
+X_train = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/X_train_stats.csv")
+X_test = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/X_test_stats.csv")
+y_train = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/y_train_stats.csv")
+y_test = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/y_test_stats.csv")
 
 np.random.seed(22)
 random.seed(22)

@@ -6,11 +6,11 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from matplotlib.patches import Patch
 import properscoring as ps
 
-y_train = pd.read_csv("/perm/nld3863/create_dataset_all/y_train_stats.csv")
-y_test = pd.read_csv("/perm/nld3863/create_dataset_all/y_test_stats.csv")
-X_train = pd.read_csv("/perm/nld3863/create_dataset_all/X_train_stats.csv")
-X_test = pd.read_csv("/perm/nld3863/create_dataset_all/X_test_stats.csv")
-date_test = pd.read_csv("/perm/nld3863/create_dataset_all/big_df_stats_2021.csv")
+X_train = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/X_train_stats.csv")
+X_test = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/X_test_stats.csv")
+y_train = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/y_train_stats.csv")
+y_test = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/y_test_stats.csv")
+date_test = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/big_df_stats_2021.csv")
 
 date = pd.to_datetime(date_test["time"], format='%Y%m%d_%H%M%S').dt.date
 min_time = date.min()

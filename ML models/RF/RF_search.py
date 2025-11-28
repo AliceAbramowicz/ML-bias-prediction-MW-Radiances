@@ -12,18 +12,18 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 from sklearn import tree
-from sklearn.tree import plot_tree
 import random
 import pickle
 from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import TimeSeriesSplit, GridSearchCV # time series to avoid data leakage
 
 np.random.seed(22)
 random.seed(22)
 
-X_train = pd.read_csv("/perm/nld3863/create_dataset_all/X_train_stats.csv")
-X_test = pd.read_csv("/perm/nld3863/create_dataset_all/X_test_stats.csv")
-y_train = pd.read_csv("/perm/nld3863/create_dataset_all/y_train_stats.csv")
-y_test = pd.read_csv("/perm/nld3863/create_dataset_all/y_test_stats.csv")
+X_train = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/X_train_stats.csv")
+X_test = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/X_test_stats.csv")
+y_train = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/y_train_stats.csv")
+y_test = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/y_test_stats.csv")
 
 y_train = np.ravel(y_train)
 y_test = np.ravel(y_test)
@@ -35,14 +35,16 @@ print("Shape of X_test:", X_test.shape)
 print(X_train)
 
 param_grid = {
-    'n_estimators': [250, 500],
-    'max_features': [12, 16, 20, 24, 28, 32],
-    'min_samples_leaf': [1, 2, 4, 8, 12]
+    'n_estimators': [500],
+    'max_features': [8, 12, 16, 20, 24, 28],
+    'min_samples_leaf': [4, 8, 12, 16, 20]
 }
 
 model = RandomForestRegressor(random_state=100)
 
-grid_search = GridSearchCV(estimator=model, param_grid=param_grid, scoring='neg_mean_squared_error', cv=5, verbose=2)
+tscv = TimeSeriesSplit(n_splits=5)
+
+grid_search = GridSearchCV(estimator=model, param_grid=param_grid, scoring='neg_mean_squared_error', cv=tscv, verbose=2)
 grid_result = grid_search.fit(X_train, y_train)
 
 with open('RF_GS.pkl', 'wb') as file:
@@ -60,13 +62,14 @@ best_result_dict = {'best_estimator': best_rf,
         'feature_importances': feature_importances,
         'mse': mse_best, 
         'r2': r2_best,
-        'y_pred': y_pred_best
+        'y_pred': y_pred_best,
+        'RF_GS': grid_search
     }
 
-pickle_file_best = 'RF_best_result.pkl'
+pickle_file_best = 'RF_results.pkl'
 
 with open(pickle_file_best, 'wb') as f:
     pickle.dump(best_result_dict, f)
 
-print("Best results saved in RF_best_result.pkl")
+print("Best model's results saved in RF_results.pkl")
 

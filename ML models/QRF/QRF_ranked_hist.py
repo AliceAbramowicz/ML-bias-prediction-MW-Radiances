@@ -6,11 +6,11 @@ import pickle
 from matplotlib.patches import Patch
 import xskillscore
 
-df_test = pd.read_csv("/perm/nld3863/create_dataset_all/big_df_stats_2021.csv")
-X_train = pd.read_csv("/perm/nld3863/create_dataset_all/X_train_stats.csv")
-X_test = pd.read_csv("/perm/nld3863/create_dataset_all/X_test_stats.csv")
-y_test = df_test["param"]
-
+df_test = pd.read_csv("perm/nld3863/pipeline_datasets/datasets/final_df/big_df_stats_2021.csv")
+X_train = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/X_train_stats.csv")
+X_test = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/X_test_stats.csv")
+y_train = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/y_train_stats.csv")
+y_test = pd.read_csv("/perm/nld3863/pipeline_datasets/datasets/final_df/y_test_stats.csv")
 """
 Rank histograms show the bias of the model:
     - if the forecast is accirate, the rank histogram is flat

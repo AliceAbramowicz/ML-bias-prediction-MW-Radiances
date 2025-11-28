@@ -1,0 +1,47 @@
+domain: DINI
+EXP: Jan_cy43
+
+hm_dir: /perm/nld3863/pipeline_datasets
+
+data_dir: /perm/nld3863/pipeline_datasets/datasets
+raw_data_dir: /scratch/nld3863/ODBs/ODB_2023_4DVar
+ccma_output_dir: /perm/nld3863/pipeline_datasets/datasets/ccma_dini_2023
+sat_tables_dir: /perm/nld3863/pipeline_datasets/datasets/sat_2023_tables
+anchors_dir: /perm/nld3863/pipeline_datasets/datasets/anchors_2023_tables
+merged_odb_dir: /perm/nld3863/pipeline_datasets/datasets/merged_2023_tables
+
+origin_varbc_dir: /scratch/nld3863/ODBs/ODB_2023_4DVar
+dest_varbc_dir: /perm/nld3863/pipeline_datasets/datasets/VarBC_2023
+varbc_output_file: /perm/nld3863/pipeline_datasets/datasets/varbc_DINI_common_sat_sen.csv
+
+output_dir: /perm/nld3863/pipeline_datasets/datasets/final_df
+final_df: /perm/nld3863/pipeline_datasets/datasets/final_df/big_df_stats_2023.csv
+
+# Date loop configuration
+year: 2023
+months:
+  - "02"
+  - "03"
+  - "04"
+  - "05"
+  - "06"
+days:
+  "02": ["09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28"]
+  "03": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"]
+  "04": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30"]
+  "05": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"] 
+  "06": ["01", "02", "03", "04", "05"]
+cycles: ["00", "03", "06", "09", "12", "15", "18", "21"]
+
+
+sensors: "3,15,73"
+
+scripts:
+- scripts/untar_odb.sh
+- scripts/WriteODBreq_sat.sh
+- scripts/WriteODBreq_anchors.sh
+- scripts/chan_peaks.py
+- scripts/stats_radiosondes.py
+- scripts/makeDirectories_varbc.sh
+- scripts/varbc_dataset_preparation.py
+- scripts/JoinLoopVarbc.py

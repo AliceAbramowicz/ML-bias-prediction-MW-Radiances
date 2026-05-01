@@ -35,15 +35,14 @@ print(y_train.dtypes)
 
 # Limit CPU threads to avoid pthread_create errors
 tf.config.threading.set_intra_op_parallelism_threads(2)
-tf.config.threading.set_inter_op_parallelism_threads(2)
 
 def build_model(hp):
     model = keras.Sequential()
     
-    batch_size = hp.Choice('batch_size', values=[32, 64, 128, 256, 512])
+    batch_size = hp.Choice('batch_size', values=[16, 32, 48, 64, 80, 96, 112, 128, 144, 160])
     l2_reg = hp.Float('l2_reg', 1e-5, 1e-4, sampling='log') # tune for lambda of the Ridge penalty (L2 regularization)
     use_l2 = hp.Boolean('use_l2_regularization')
-    units1 = hp.Int('units1', min_value=32, max_value=512, step=32)
+    units1 = hp.Int('units1', min_value=16, max_value=160, step=16)
     kernel_regularizer = keras.regularizers.l2(l2_reg) if use_l2 else None
     kernel_init = hp.Choice('kernel_initializer', ['he_normal', 'he_uniform'])
     model.add(layers.Dense(units=units1, kernel_regularizer=kernel_regularizer, kernel_initializer=kernel_init, input_shape=X_train.shape[1:]))
@@ -80,7 +79,7 @@ tuner = kt.BayesianOptimization(build_model,
                      beta=2.6,
                      seed=100,
                      tune_new_entries=True,
-                     project_name='bayesian_search_Q_T')
+                     project_name='bayesian_search_NN_simpler')
 
 stop_early = EarlyStopping(
     monitor='val_loss',
@@ -101,7 +100,8 @@ tuner.search(X_train, y_train, epochs=125, validation_data=(X_val, y_val), callb
 
 best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
 best_batch_size = best_hps.get('batch_size')
-
+print(best_hps)
+print('batch size', best_batch_size)
 
 stop_early_ = EarlyStopping(
     monitor='val_loss',
@@ -111,13 +111,13 @@ stop_early_ = EarlyStopping(
 # IF YOU NEED TO TRAIN YOUR MODEL:
 model = tuner.hypermodel.build(best_hps)
 history = model.fit(X_train, y_train, epochs=1000, batch_size=best_batch_size, validation_data=(X_val, y_val), shuffle=False, callbacks=[stop_early_])
-with open('HISTORY_Bayesian_Q_T.pkl', 'wb') as f:
-    pickle.dump(history.history, f)
-model.save("NN_Bayesian_Q_T.keras")
+with open('HISTORY_Bayesian_simpler.pkl', 'wb') as f:
+   pickle.dump(history.history, f)
+model.save("NN_Bayesian_simpler.keras")
 
 
 # IF MODEL ALREADY TRAINED, LOAD IT:
-# model = tf.keras.models.load_model('FINAL_NN.keras')
+# model = tf.keras.models.load_model('NN_Bayesian_simpler.keras')
 
 print("model's architecture:")
 model.summary()
@@ -139,14 +139,14 @@ results_df = pd.DataFrame({
 })
 
 results_dict = {
-    'final_model_path': 'NN.keras',
+    'best_estimator': 'NN_Bayesian_simpler.keras',
     'scaled_metrics': {'mse': mse_scaled, 'r2': r2_scaled},
     'results_df': results_df,
     'y_test_scaled': y_test,
     'y_pred_scaled': y_pred
 }
 
-pickle_file = 'results_NN_Q_T'
+pickle_file = 'NN_results_simpler.pkl'
 with open(pickle_file, 'wb') as f:
     pickle.dump(results_dict, f)
 

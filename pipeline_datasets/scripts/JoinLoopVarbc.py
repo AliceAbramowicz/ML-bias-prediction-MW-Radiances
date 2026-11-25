@@ -1,128 +1,153 @@
-import sys
+#!/usr/bin/env python3
+"""
+Join the VarBC dataset to the per-cycle merged ODB tables.
+
+Reads  VARBC_OUTPUT_FILE (one row per predictor) & MERGED_ODB_DIR/merged_ODB_$DOMAIN_$YEAR.csv
+Writes FINAL_DF 
+
+Per (time, sat, sensor, channel) it:
+- summarises statistics of your variables of interest from the odb for satellite data 
+- merges the result onto VarBC params
+"""
+
 import os
-import getopt
-import csv
+import sys
+from pathlib import Path
+import numpy as np
 import pandas as pd
 
-YEAR = os.environ["YEAR"]
-DOMAIN = os.environ["DOMAIN"]
+def require_env(name):
+    value = os.environ.get(name)
+    if not value:
+        sys.exit(f"Missing environment variable: {name}")
+    return value
 
-# read the VARBC dataframe from -i
-def get_varbc_df(file_path):
-    varbc_df = pd.read_csv(file_path, index_col=False)
-    return varbc_df
+# Column layout of merged_ODB_*.csv in order
+COLUMNS = ["date", "time", "lat", "lon", "sat", "sensor", "channel", "fg_depar", "an_depar", "biascorr_fg", "biascorr", "obs", "zenith", "azimuth"]
+# alternative layout depending on what was selected in odb request: ML-bias-prediction-MW-Radiances/pipeline_datasets/scripts/WriteODBreq_sat.sh:
+COLUMNS_96 = ["date", "time", "lat", "lon", "sat", "sensor", "channel",
+                   "fg_depar", "an_depar", "biascorr_fg", "obs"]
+COLUMNS_99 = ["date", "time", "lat", "lon", "sat", "sensor", "channel",
+                   "fg_depar", "an_depar", "biascorr_fg", "biascorr", "obs",
+                   "zenith", "azimuth"]
 
-# read CCMA files from -c
-def ccma_to_VARBC(filename):
-    # Remove the filename extension
-    filename_without_extension = filename.split('.')[0]
-    # Take only the part after the 3rd underscore
-    part_after_underscore = filename_without_extension.split('_')[3]
-    # Add an underscore before the last 2 characters
-    underscored_string = part_after_underscore[:-2] + '_' + part_after_underscore[-2:]
-    # Append 4 zeros at the end
-    transformed_filename = underscored_string + '0000'
-    return transformed_filename
+GROUP_KEYS = ["time", "sat", "sensor", "channel"]
+STAT_COLS = ["fg_depar", "obs", "an_depar", "biascorr_fg"]
+MERGE_KEYS = ["time", "sat", "sensor", "channel", "ndata", "npred", "pred_id"]
 
-def calculate_statistics(subset_df, simple_df, column_prefix):
-    data = subset_df[column_prefix]
-    stats = {
-        f"mean_{column_prefix}": round(data.mean(), 4),
-        f"var_{column_prefix}": round(data.var(), 4),
-        f"q25_{column_prefix}": round(data.quantile(q=0.25), 4),
-        f"q50_{column_prefix}": round(data.quantile(q=0.5), 4),
-        f"q75_{column_prefix}": round(data.quantile(q=0.75), 4)
-    }
-    
-    return stats
+def build_agg_spec():
+    # named aggregation
+    spec = {}
+    for col in STAT_COLS:
+        spec[f"mean_{col}"] = (col, "mean")
+        spec[f"var_{col}"] = (col, "var")
+        spec[f"q01_{col}"] = (col, lambda s: s.quantile(0.01))
+        spec[f"q05_{col}"] = (col, lambda s: s.quantile(0.05))
+        # spec[f"q10_{col}"] = (col, lambda s: s.quantile(0.1))
+        spec[f"q25_{col}"] = (col, lambda s: s.quantile(0.25))
+        # spec[f"q30_{col}"] = (col, lambda s: s.quantile(0.3))
+        # spec[f"q40_{col}"] = (col, lambda s: s.quantile(0.4))
+        spec[f"q50_{col}"] = (col, "median")
+        # spec[f"q60_{col}"] = (col, lambda s: s.quantile(0.6))
+        spec[f"q75_{col}"] = (col, lambda s: s.quantile(0.75))
+        # spec[f"q80_{col}"] = (col, lambda s: s.quantile(0.8))
+        # spec[f"q90_{col}"] = (col, lambda s: s.quantile(0.9))
+        spec[f"q95_{col}"] = (col, lambda s: s.quantile(0.95))
+        spec[f"q99_{col}"] = (col, lambda s: s.quantile(0.01))
+    return spec
+
+AGG_SPEC = build_agg_spec()
+
+def ccma_to_varbc_time(filename):
+    """merged_ODB_$domain_$YYYYMMDDHH.csv --> 'YYYYMMDD_HHMMSS'"""
+    stamp = Path(filename).stem.rsplit("_", 1)[-1]
+    if len(stamp) != 10 or not stamp.isdigit():
+        return None
+    return f"{stamp[:8]}_{stamp[8:]}0000"
 
 def main():
-    VARBC_FILE = os.environ.get("VARBC_OUTPUT_FILE") or "/perm/nld3863/pipeline_datasets/datasets/varbc_{DOMAIN}_common_sat_sen.csv"
-    ODB_DIR = os.environ.get("MERGED_ODB_DIR") or "/perm/nld3863/pipeline_datasets/datasets/merged_{YEAR}_tables"
+    VARBC_FILE = require_env("VARBC_OUTPUT_FILE")
+    ODB_DIR = require_env("SAT_TABLES_DIR")
+    OUTPUT_FILE = os.environ.get("FINAL_DF")
 
-    varbc_df = get_varbc_df(VARBC_FILE)
-    csv_files = [f for f in os.listdir(ODB_DIR) if f.endswith(".csv")]
+    varbc_df = pd.read_csv(VARBC_FILE, index_col=False)
+    print(f"VARBC rows: {len(varbc_df)}")
 
-    allDates_df = pd.DataFrame()
-    for filename in csv_files:
+    txt_files = sorted(f for f in os.listdir(ODB_DIR) if f.endswith(".txt"))
+    print(f"Found {len(txt_files)} ODB file(s) in {ODB_DIR}")
+
+    frames = []
+    n_skipped = 0
+
+    for filename in txt_files:
         file_path = os.path.join(ODB_DIR, filename)
-        if os.path.isfile(file_path):
-            print(f"Filepath: {file_path}")
-            df = pd.DataFrame(columns=['time', 'sat', 'sensor', 'channel'])
-            large_df = pd.DataFrame()
-            try:
-                ccma_df = pd.read_csv(file_path, index_col = False)
-                ccma_df.columns = ['date', 'time', 'lat', 'lon', 'sat', 'sensor', 'channel', 'fg_depar', 'an_depar', 'biascorr_fg', 'obs', 'peak_hPa', 'q25_anchors', 'q50_anchors', 'q75_anchors']
-                time = ccma_to_VARBC(filename)
-                print("time: ",time)
-                ccma_df['time'] = time
-                sat = ccma_df['sat'].unique()
-                sen = ccma_df['sensor'].unique()
-                chan = ccma_df['channel'].unique()
+        time = ccma_to_varbc_time(filename)
+        if time is None:
+            print(f"Skipping {filename}: cannot parse timestamp")
+            n_skipped += 1
+            continue
 
-                print('sat:', sat)
-                print('sen:', sen)
+        try:
+            ccma_df = pd.read_csv(file_path, sep=r"\s+", index_col=False)
+        except Exception as exc:
+            print(f"Error reading {file_path}: {exc}")
+            n_skipped += 1
+            continue
 
-                for sa in sat:
-                    for se in sen:
-                        for ch in chan:
-                            subset_df = ccma_df[(ccma_df['sat'] == sa) & (ccma_df['sensor'] == se) & (ccma_df['channel'] == ch)]
-                            if not subset_df.empty:
-                                simple_df = pd.DataFrame({
-                                    'time': subset_df['time'].unique(),
-                                    'sat': subset_df['sat'].unique(),
-                                    'sensor': subset_df['sensor'].unique(),
-                                    'channel': subset_df['channel'].unique()
-                                    })
-                                print("subset_df:", subset_df)
-                                all_stats = {}
-                                for column in ['fg_depar', 'an_depar', 'biascorr_fg', 'obs']:
-                                    stats = calculate_statistics(subset_df=subset_df, simple_df=simple_df, column_prefix=column)
-                                    all_stats.update(stats)
-                                stats_df = pd.DataFrame([all_stats])
-
-                                print("stats_df:", stats_df)
-                                df = pd.concat([simple_df.reset_index(drop=True), stats_df], axis=1)
-                                # add anchors and hPa:
-                                anchor_cols = ['q25_anchors', 'q50_anchors', 'q75_anchors']
-                                for col in anchor_cols:
-                                    df[col] = subset_df[col].median()
-                                print("df end iteration with anchors:", df)
-                            else:
-                                print("subset_df is empty")
-                                
-                            if large_df.empty:
-                                large_df = df
-                            else:
-                                large_df = pd.concat([large_df, df])
-                           
-                            print("large df:", large_df.shape)
-            except Exception as e:
-                 print(f"An error occurred while processing file {file_path}: {e}")
-                 continue
-
-        if allDates_df.empty:
-            allDates_df = large_df
+        n_cols = len(ccma_df.columns)
+        if n_cols == len(COLUMNS):
+            COLUMNS = COLUMNS
+        elif n_cols == len(COLUMNS_96):
+            COLUMNS = COLUMNS_96
+        elif n_cols == len(COLUMNS_99):
+            COLUMNS = COLUMNS_99
         else:
-            allDates_df = pd.concat([allDates_df, large_df])
+            print(f"Skipping {filename}: expected {len(COLUMNS_96)} or {len(COLUMNS_99)} columns, got {n_cols}")
+            n_skipped += 1
+            continue
 
-    allDates_df = allDates_df.groupby(['time', 'sat', 'sensor', 'channel'], as_index=False).mean() # necessary to avoid duplicate rows with slightly different anchor values when 2 files have same datagroup at overlapping time
+        ccma_df.columns = COLUMNS
+        ccma_df["time"] = time
 
-    print("varbc", varbc_df.head())
-    merged_df = pd.merge(varbc_df, allDates_df, how='inner', on=['time', 'sat', 'sensor', 'channel'])
-    merged_df = merged_df.groupby(['time', 'sat', 'sensor', 'channel', 'ndata','npred', 'pred_id'], as_index=False).mean()# make sure no duplicates are left
-    merged_df['time_formatted'] = pd.to_datetime(merged_df['time'], format='%Y%m%d_%H%M%S')
-    min_time = merged_df['time_formatted'].min()
-    max_time = merged_df['time_formatted'].max()
-    time_range = max_time - min_time
+        stats = ccma_df.groupby(GROUP_KEYS, as_index=False).agg(**AGG_SPEC)
+        frames.append(stats.round(6))
+        print(f"{filename}: {len(ccma_df)} rows --> {len(stats)} data groups")
 
-    merged_df['normalized_time'] = ((merged_df['time_formatted'] - min_time) / time_range).round(6)
-    merged_df['cycle'] = merged_df['time_formatted'].dt.hour
-    merged_df = merged_df.drop(['time_formatted'], axis=1)
+    if not frames:
+        sys.exit(f"No usable ODB files in {ODB_DIR}")
+
+    all_dates = pd.concat(frames, ignore_index=True)
+
+    # Collapse groups that appear in more than one file at overlapping times
+    all_dates = all_dates.groupby(GROUP_KEYS, as_index=False).mean()
+    print(f"Aggregated ODB rows: {len(all_dates)} "
+          f"({n_skipped} file(s) skipped)")
+
+    merged_df = pd.merge(varbc_df, all_dates, how="inner", on=GROUP_KEYS)
+    if merged_df.empty:
+        sys.exit("Merge produced no rows: check that VARBC and ODB time/sat/sensor/channel keys agree")
+    merged_df = merged_df.groupby(MERGE_KEYS, as_index=False).mean()
+
+    merged_df["time_formatted"] = pd.to_datetime(merged_df["time"], format="%Y%m%d_%H%M%S")
+    # min_time = merged_df["time_formatted"].min()
+    # max_time = merged_df["time_formatted"].max()
+    # time_range = max_time - min_time
+
+    days_in_year = np.where(merged_df["time_formatted"].dt.is_leap_year, 366.0, 365.0)
+    day_fraction = (merged_df["time_formatted"].dt.dayofyear - 1)
+    year_angle = 2 * np.pi * day_fraction / days_in_year
+
+    merged_df["time_cos"] = np.cos(year_angle).round(6)
+    merged_df["time_sin"] = np.sin(year_angle).round(6)
+
+    merged_df["cycle"] = merged_df["time_formatted"].dt.hour
+    merged_df = merged_df.drop(columns=["time_formatted"])
     merged_df = merged_df.drop_duplicates()
 
-    output_file = f"/perm/nld3863/pipeline_datasets/datasets/final_df/big_df_stats_{YEAR}.csv"
-    merged_df.to_csv(output_file, index=False)
+    tmp_path = OUTPUT_FILE + ".tmp"
+    merged_df.to_csv(tmp_path, index=False)
+    os.replace(tmp_path, OUTPUT_FILE)
+    print(f"Wrote {len(merged_df)} rows x {len(merged_df.columns)} columns to {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     main()

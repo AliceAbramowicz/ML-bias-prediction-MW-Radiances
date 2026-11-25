@@ -1,47 +1,57 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ENV expected from run_pipeline.py:
-#   YEAR, HM_DIR, EXP, MONTHS, DAYS_JSON, CYCLES
-#   (optional: ODB_DIR, VARNO, SAT_IDS, SENSOR_IDS)
+# Extract satellite data from the CCMAs into SAT_TABLES_DIR/sat_$YYYYMMDDHH.txt
+# Environment from pipeline_dataset.py:
+# CCMA_OUTPUT_DIR, SAT_TABLES_DIR, DATETIMES, SENSORS, SATELLITES
 
-#  default values given here in case they are absent in config:
-YEAR=${YEAR}
-CCMA_OUTPUT_DIR=${CCMA_OUTPUT_DIR}
-HM_DIR=${HM_DIR:-/perm/nld3863/pipeline_datasets}
-DATA_DIR=${DATA_DIR:-/perm/nld3863/pipeline_datasets/datasets}
-DEST_DIR="$DATA_DIR/sat_${YEAR}_tables"
-mkdir -p "$DEST_DIR"
+: "${CCMA_OUTPUT_DIR:?CCMA_OUTPUT_DIR is not set}"
+: "${SAT_TABLES_DIR:?SAT_TABLES_DIR is not set}"
+: "${DATETIMES:?DATETIMES is not set}"
+: "${SENSORS:?SENSORS is not set}"
+: "${SATELLITES:?SATELLITES is not set}"
 
-ODB_DIR="odb_ccma/CCMA"
-VARNO="119" # 119 == Brightness temperature
-OBSTYPE="7" # 7 == SATEM
+VARNO=119          # 119 == brightness temperature
+OBSTYPE=7          # 7 == SATEM
+ODB_SUBDIR="odb_ccma/CCMA"
 
-# Parse the JSON date dictionary
-for mm in $MONTHS; do
-  for dd in $(python3 -c "import json; d=json.loads('$DAYS_JSON'); print(' '.join(d.get('$mm', [])))"); do
-    for cy in $CYCLES; do
-      echo "Processing ${YEAR}${mm}${dd}${cy}"
-      odb_path="$CCMA_OUTPUT_DIR/$YEAR/$mm/$dd/$cy/$ODB_DIR"
-      outfile_final="$DEST_DIR/sat_${YEAR}${mm}${dd}${cy}.txt"
+n_done=0
+n_skipped=0
+n_failed=0
 
-      # Skip processing if the final txt file already exists (-s if you want to skip only when file exists AND not empty)
-      if [ -f "$outfile_final" ]; then
-        echo "Skipping ${outfile_final} — already exists and non-empty."
-        continue
-      fi
+for stamp in $DATETIMES; do
+  yyyy=${stamp:0:4}
+  mm=${stamp:4:2}
+  dd=${stamp:6:2}
+  cy=${stamp:8:2}
 
-      if [ ! -d "$odb_path" ]; then
-        echo "Directory not found: $odb_path"
-        continue
-      fi
+  odb_path="$CCMA_OUTPUT_DIR/$yyyy/$mm/$dd/$cy/$ODB_SUBDIR"
+  outfile="$SAT_TABLES_DIR/sat_${stamp}.txt"
+  tmpfile="$outfile.tmp"
 
-      cd "$odb_path"
+  # empty files will still be re-run and take time when pipeline is rerun, even when this script was already fully run
+  if [ -s "$outfile" ]; then
+    echo "Skipping $outfile - already exists."
+    n_skipped=$((n_skipped + 1))
+    continue
+  fi
 
-      sqlfile="sql_temp_${YEAR}${mm}${dd}${cy}.sql"
-      outfile_temp="temp_${YEAR}${mm}${dd}${cy}.txt"
+  if [ ! -d "$odb_path" ]; then
+    echo "Directory not found: $odb_path"
+    n_skipped=$((n_skipped + 1))
+    continue
+  fi
 
-cat > $sqlfile <<EOF
+  echo "Processing $stamp"
+  rm -f "$tmpfile"
+
+
+  (
+    cd "$odb_path"
+    sqlfile="sql_sat_${stamp}.sql"
+    trap 'rm -f "$sqlfile"' EXIT
+
+    cat > "$sqlfile" <<EOF
 SELECT
   date,
   time,
@@ -52,32 +62,30 @@ SELECT
   vertco_reference_1@body,
   fg_depar,
   an_depar,
-  biascorr_fg,
-  obsvalue@body
+  biascorr_fg@body,
+  biascorr@body,
+  obsvalue@body,
+  zenith@sat,
+  azimuth@sat
 FROM hdr, body, sat
 WHERE (varno@body = $VARNO)
   AND (obstype@hdr = $OBSTYPE)
-  AND satellite_identifier@sat IN (3, 5, 209, 223, 523)
-  AND sensor@hdr IN (3, 15, 73);
+  AND satellite_identifier@sat IN ($SATELLITES)
+  AND sensor@hdr IN ($SENSORS);
 EOF
-# Run dcagen and odbsql safely
-if ! dcagen; then
-  echo "Warning: dcagen failed for ${YEAR}${mm}${dd}${cy}"
-  rm -f "$sqlfile"
-  continue
-fi
 
-dcagen 
-# execute SQL query from TempFile
-odbsql -v $sqlfile -k -o $outfile_temp
-pwd
-rm -f $sqlfile
-cat $outfile_temp >> $outfile_final
-pwd
-rm -f $outfile_temp
-echo "Finished ${outfile_final}"
+    dcagen
+    odbsql -v "$sqlfile" -k -o "$tmpfile"
+  ) || {
+    echo "WARNING: extraction failed for $stamp"
+    rm -f "$tmpfile"
+    n_failed=$((n_failed + 1))
+    continue
+  }
 
-		done
-	done     
-done      
+  mv "$tmpfile" "$outfile"
+  echo "Finished $outfile"
+  n_done=$((n_done + 1))
+done
 
+echo "WriteODBreq_sat: $n_done written, $n_skipped skipped, $n_failed failed"
